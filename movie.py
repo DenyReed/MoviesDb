@@ -67,7 +67,14 @@ def search_movies_by_title(title):
 
 # Функция для поиска фильмов по актеру
 def search_movies_by_actor(actor):
-    cur.execute('SELECT * FROM actor WHERE first_name LIKE %s OR last_name LIKE %s LIMIT 10', ('%' + actor + '%', '%' + actor + '%'))
+    cur.execute('''
+            SELECT film.film_id, film.title, film.release_year
+        FROM film
+        JOIN film_actor ON film.film_id = film_actor.film_id
+        JOIN actor ON film_actor.actor_id = actor.actor_id
+        WHERE actor.first_name LIKE %s OR actor.last_name LIKE %s
+        LIMIT 10
+        ''', ('%' + actor + '%', '%' + actor + '%'))
     results = cur.fetchall()
     return results
 
@@ -119,7 +126,7 @@ def main():
             movies = search_movies_by_actor(actor)
             if movies:
                 for movie in movies:
-                    print(f"ID: {movie[0]}, Название: {movie[1]}, Актер: {movie[2]}, Год: {movie[3]}")
+                    print(f"ID: {movie[0]}, Название: {movie[1]}, Год: {movie[2]}")
             else:
                 print("Фильмы не найдены.")
 
