@@ -123,7 +123,7 @@ def main():
             else:
                 print("Фильмы не найдены.")
 
-        if choice == '4':
+        elif choice == '4':
             genre = input("Введите жанр для поиска: ")
             log_query("Поиск фильмов по жанру: " + genre)
             movies = search_movies_by_genre(genre)
