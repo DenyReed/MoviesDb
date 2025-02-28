@@ -1,5 +1,9 @@
 import pymysql
 import configparser
+import sqlite3
+import os
+from collections import Counter
+
 
 config = configparser.ConfigParser()
 config.sections()
@@ -21,26 +25,39 @@ connection = pymysql.connect(
 
 cur = connection.cursor()
 
-# Функция для записи запроса в DB
+data_folder = 'data'
+db_filename = 'movies.db'
+db_path = os.path.join(data_folder, db_filename)
+
+os.makedirs(data_folder, exist_ok=True)
+
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
+
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS queries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    query TEXT NOT NULL,
+    count INTEGER NOT NULL
+)
+''')
+conn.commit()
+
+# Функция для добавления запроса в базу данных или увеличения счетчика
 def log_query(query):
-    cur.execute('SELECT * FROM denyreed_search_results WHERE search_text = %s LIMIT 1', (query,))
-    results = cur.fetchall()
-
-    if results:
-        for result in results:
-            newCount = result[1] + 1
-            cur.execute('UPDATE denyreed_search_results SET count = %s WHERE search_text = %s', (newCount, query))
-            connection.commit()
+    cursor.execute('SELECT count FROM queries WHERE query = ?', (query,))
+    result = cursor.fetchone()
+    if result:
+        new_count = result[0] + 1
+        cursor.execute('UPDATE queries SET count = ? WHERE query = ?', (new_count, query))
     else:
-        cur.execute('INSERT INTO denyreed_search_results (search_text, count) VALUES (%s, %s)', (query, 1))
-        connection.commit()
-    return
+        cursor.execute('INSERT INTO queries (query, count) VALUES (?, ?)', (query, 1))
+    conn.commit()
 
-# Функция для чтения последних запросов из DB
-def read_last_queries():
-    cur.execute('SELECT * FROM denyreed_search_results ORDER BY count DESC LIMIT 10')
-    results = cur.fetchall()
-    return results
+def get_top_queries(top_n=10):
+    cursor.execute('SELECT query, count FROM queries ORDER BY count DESC LIMIT ?', (top_n,))
+    top_queries = cursor.fetchall()
+    return top_queries
 
 # Функция для поиска фильмов по названию
 def search_movies_by_title(title):
@@ -50,9 +67,22 @@ def search_movies_by_title(title):
 
 # Функция для поиска фильмов по актеру
 def search_movies_by_actor(actor):
-    cur.execute('SELECT * FROM actor WHERE first_name or last_name LIKE %s LIMIT 10', ('%' + actor + '%',))
+    cur.execute('SELECT * FROM actor WHERE first_name LIKE %s OR last_name LIKE %s LIMIT 10', ('%' + actor + '%', '%' + actor + '%'))
     results = cur.fetchall()
     return results
+
+# Функция для поиска фильмов по жанру
+def search_movies_by_genre(genre):
+    cur.execute('SELECT * FROM film WHERE special_features LIKE %s LIMIT 10', ('%' + genre + '%',))
+    results = cur.fetchall()
+    return results
+
+# Функция для поиска фильмов по году
+def search_movies_by_year(year):
+    cur.execute('SELECT * FROM film WHERE release_year = %s LIMIT 10', (year,))
+    results = cur.fetchall()
+    return results
+
 
 # Консольный интерфейс
 def main():
@@ -61,18 +91,17 @@ def main():
         print("1. Показать последние запросы")
         print("2. Поиск фильма по названию")
         print("3. Поиск фильма по актерам")
-        print("4. Выйти")
+        print("4. Поиск по жанру")
+        print("5. Поиск по году выпуска")
+        print("6. Выйти")
 
         choice = input("Введите номер действия: ")
 
         if choice == '1':
-            last_queries = read_last_queries()
-            if last_queries:
-                print("\nПоследние запросы:")
-                for query in last_queries:
-                    print(f"Поисковая строка: {query[0]}, Кол-во запросов: {query[1]}")
-            else:
-                print("Нет сохраненных запросов.")
+            top_queries = get_top_queries()
+            print("Топ 10 запросов:")
+            for query, count in top_queries:
+                print(f"{query}: {count}")
 
         elif choice == '2':
             title = input("Введите название фильма для поиска: ")
@@ -94,7 +123,27 @@ def main():
             else:
                 print("Фильмы не найдены.")
 
-        elif choice == '4':
+        if choice == '4':
+            genre = input("Введите жанр для поиска: ")
+            log_query("Поиск фильмов по жанру: " + genre)
+            movies = search_movies_by_genre(genre)
+            if movies:
+                for movie in movies:
+                    print(f"ID: {movie[0]}, Название: {movie[1]}, Жанр: {movie[2]}, Год: {movie[3]}, Актер: {movie[4]}")
+            else:
+                print("Фильмы не найдены.")
+
+        elif choice == '5':
+            year = int(input("Введите год для поиска: "))
+            log_query("Поиск фильмов по году: " + str(year))
+            movies = search_movies_by_year(year)
+            if movies:
+                for movie in movies:
+                    print(f"ID: {movie[0]}, Название: {movie[1]}, Жанр: {movie[2]}, Год: {movie[3]}, Актер: {movie[4]}")
+            else:
+                print("Фильмы не найдены.")
+
+        elif choice == '6':
             print("Выход из программы.")
             break
 
