@@ -7,10 +7,10 @@
 
 ````
 [Database]
-Host=someurl.rds.amazonaws.com
+Host=somehost
 User=someuser
-Password=password
-Database=sakila
+Password=somepassword
+Database=somedata
 ````
 
 3. Вместо обезличенных данных укажите реальные данные для подключения к вашей базе данных
